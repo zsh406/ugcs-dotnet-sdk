@@ -71,15 +71,11 @@ namespace UGCS.Example.ViewModels
             }
             Task.Factory.StartNew(() =>
             {
-                string filename = @"C:\Users\zsh\Documents\ugcs_routes\meilan_mavic.txt";
-                string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filename);
-                Route = _routeService.CreateNewRoute(Mission, ClientVehicle.Vehicle.Profile, fileNameWithoutExtension);
-                Route = _routeService.AddWaypointFromArdupilotFile(filename, Route);
-                //Route = _routeService.AddWaypoint(Route, 0, 0.99443566874164979, 0.42015588448045021);
-                //Route = _routeService.AddWaypoint(Route, 1, 0.9944535, 0.4201588);
-                //Route = _routeService.AddWaypoint(Route, 2, 0.9944535, 0.4201720);
-                //Route = _routeService.AddWaypoint(Route, 3, 0.99443566874164979, 0.4201620);
-                
+                Route = _routeService.CreateNewRoute(Mission, ClientVehicle.Vehicle.Profile, "TestRoute");
+                Route = _routeService.AddWaypoint(Route, 0, 0.99443566874164979, 0.42015588448045021);
+                Route = _routeService.AddWaypoint(Route, 1, 0.9944535, 0.4201588);
+                Route = _routeService.AddWaypoint(Route, 2, 0.9944535, 0.4201720);
+                Route = _routeService.AddWaypoint(Route, 3, 0.99443566874164979, 0.4201620);
             }).ContinueWith((result) =>
             {
                 if (result.Exception != null)

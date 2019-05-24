@@ -2,13 +2,11 @@
 using Services.Interfaces;
 using Services.Log;
 using System;
-using System.Data;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.IO;
 using UGCS.Sdk.Protocol.Encoding;
 using UGCS.Sdk.Protocol;
 using Services.Helpers;
@@ -56,7 +54,7 @@ namespace Services.SdkServices
             newSegment.ParameterValues.Add(new ParameterValue()
             {
                 Name = "wpTurnType",
-                Value = "STOP_AND_TURN",
+                Value = "SPLINE",
                 ValueSpecified = true
             });
             newSegment.ParameterValues.Add(new ParameterValue()
@@ -71,23 +69,7 @@ namespace Services.SdkServices
                 Value = "True",
                 ValueSpecified = true
             });
-            //add action to route
-            ActionDefinition actionDefenition = new ActionDefinition();
-            CameraTriggerDefinition triggerDef = new CameraTriggerDefinition
-            {
-                State = TriggerState.TS_SINGLE_SHOT
-            };
-            actionDefenition.CameraTriggerDefinition = triggerDef;
 
-            newSegment.ActionDefinitions.Add(actionDefenition);
-
-            ActionDefinition actionDefenition2 = new ActionDefinition();
-            actionDefenition2.HeadingDefinition = new HeadingDefinition
-            {
-                Heading = 1.57079633, // 90 degrees
-                RelativeToNorth = true
-            };
-            newSegment.ActionDefinitions.Add(actionDefenition2);
 
             newSegment.Figure.Points.Add(new FigurePoint()
             {
@@ -108,234 +90,6 @@ namespace Services.SdkServices
             return SaveUpdatedRoute(route);
         }
 
-        public Route AddWaypointFromArdupilotFile(string filename, Route route)
-        {
-            var waypoints = File.ReadAllLines(filename);
-            int length = waypoints.Length;
-            double heading = 0;
-            double home_lat = 0;
-            double home_lon = 0;
-            double takeoffAltitude = 0;
-            for (int i=1;i<length - 2;i++)
-            {
-
-                string[] waypointSplit = waypoints[i].Split('\t');
-                string[] waypointSplitNext = waypoints[i+2].Split('\t');
-
-                string kind = waypointSplit[3];
-                string kindNext = waypointSplitNext[3];
-
-                if (kind == "16") //waypoint
-                {
-                    double lat = Convert.ToDouble(waypointSplit[8]);
-                    double lon = Convert.ToDouble(waypointSplit[9]);
-                    double alt = Convert.ToDouble(waypointSplit[10]);
-                    if (kindNext == "115") //condition_yaw
-                    {
-                        heading = Convert.ToDouble(waypointSplitNext[4]);
-                    }
-                    if (i == 1)
-                    {
-                        home_lat = lat;
-                        home_lon = lon;
-                        //takeoff get alt
-                        takeoffAltitude = Convert.ToDouble(waypoints[i+1].Split('\t')[10]);
-                        route.Segments.Add(addTakeoffSegment(home_lat, home_lon, takeoffAltitude, heading));
-                    }
-                    else //shutter point
-                    {
-                        route = AddWaypointWithAlt(route, lat, lon, alt, heading, true, "9.0");
-                    }
-                }
-            }
-            //add return home command
-            route.Segments.Add(addLandingSegment(home_lat, home_lon));
-            route = SaveUpdatedRoute(route);
-            ExportRouteToXml(route);
-            return (route);
-            
-        }
-        public SegmentDefinition addLandingSegment(double lat, double lng)
-        {
-            TraverseAlgorithm landingAlgorithm = _mappingRequestService.GetAlgoritmByClassName("com.ugcs.ucs.service.routing.impl.LandingAlgorithm");
-            SegmentDefinition newSegment = new SegmentDefinition
-            {
-                Uuid = Guid.NewGuid().ToString(),
-                AlgorithmClassName = landingAlgorithm.ImplementationClass
-            };
-            newSegment.Figure = new Figure { Type = landingAlgorithm.FigureType };
-
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "avoidObstacles",
-                Value = "True",
-                ValueSpecified = true
-            });
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "avoidTerrain",
-                Value = "True",
-                ValueSpecified = true
-            });
-
-            newSegment.Figure.Points.Add(new FigurePoint()
-            {
-                AglAltitude = 0,
-                AglAltitudeSpecified = true,
-                AltitudeType = AltitudeType.AT_AGL, 
-                AltitudeTypeSpecified = true,
-                Latitude = lat * Math.PI / 180, //0.99443566874164979,
-                LatitudeSpecified = true,
-                Longitude = lng * Math.PI / 180, //0.42015588448045021,
-                LongitudeSpecified = true,
-                Order = 0,
-                Wgs84Altitude = 0.0,
-                Wgs84AltitudeSpecified = true
-            });
-            return newSegment;
-        }
-
-        public SegmentDefinition addTakeoffSegment(double lat, double lng, double alt,double headingDegree)
-        {
-            TraverseAlgorithm takeoffAlgorithm = _mappingRequestService.GetAlgoritmByClassName("com.ugcs.ucs.service.routing.impl.TakeOffAlgorithm");
-            SegmentDefinition newSegment = new SegmentDefinition
-            {
-                Uuid = Guid.NewGuid().ToString(),
-                AlgorithmClassName = takeoffAlgorithm.ImplementationClass
-            };
-            newSegment.Figure = new Figure { Type = takeoffAlgorithm.FigureType };
-
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "avoidObstacles",
-                Value = "True",
-                ValueSpecified = true
-            });
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "avoidTerrain",
-                Value = "True",
-                ValueSpecified = true
-            });
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "speed",
-                Value = "5.0",
-                ValueSpecified = true
-            });
-            //heading
-            ActionDefinition actionDefenition_Heading = new ActionDefinition();
-            actionDefenition_Heading.HeadingDefinition = new HeadingDefinition
-            {
-                Heading = headingDegree * Math.PI / 180, // 90 degrees
-                RelativeToNorth = true
-            };
-            newSegment.ActionDefinitions.Add(actionDefenition_Heading);
-            //camera tilt
-            ActionDefinition actionDefinition_cameraTilt = new ActionDefinition();
-            actionDefinition_cameraTilt.CameraControlDefinition = new CameraControlDefinition
-            {
-                Tilt = 90 * Math.PI / 180,
-                Roll = 0,
-                Yaw = 0
-            };
-            newSegment.ActionDefinitions.Add(actionDefinition_cameraTilt);
-
-            newSegment.Figure.Points.Add(new FigurePoint()
-            {
-                AglAltitude = 0,
-                AglAltitudeSpecified = true,
-                AltitudeType = AltitudeType.AT_AGL,
-                AltitudeTypeSpecified = true,
-                Latitude = lat * Math.PI / 180, //0.99443566874164979,
-                LatitudeSpecified = true,
-                Longitude = lng * Math.PI / 180, //0.42015588448045021,
-                LongitudeSpecified = true,
-                Order = 0,
-                Wgs84Altitude = 0.0,
-                Wgs84AltitudeSpecified = true
-            });
-            return newSegment;
-        }
-
-
-        public Route AddWaypointWithAlt(Route route, double lat, double lng, double alt, double headingDegree, bool shutter, string speed="5.0")
-        {
-            TraverseAlgorithm wpAlgorithm = _mappingRequestService.GetAlgoritmByClassName("com.ugcs.ucs.service.routing.impl.WaypointAlgorithm");
-            
-            TraverseAlgorithm landingAlgorithm = _mappingRequestService.GetAlgoritmByClassName("com.ugcs.ucs.service.routing.impl.LandingAlgorithm");
-            SegmentDefinition newSegment = new SegmentDefinition
-            {
-                Uuid = Guid.NewGuid().ToString(),
-                AlgorithmClassName = wpAlgorithm.ImplementationClass
-            };
-            newSegment.Figure = new Figure { Type = wpAlgorithm.FigureType };
-
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "speed",
-                Value = speed,
-                ValueSpecified = true
-            });
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "wpTurnType",
-                Value = "STOP_AND_TURN",
-                ValueSpecified = true
-            });
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "avoidObstacles",
-                Value = "True",
-                ValueSpecified = true
-            });
-            newSegment.ParameterValues.Add(new ParameterValue()
-            {
-                Name = "avoidTerrain",
-                Value = "True",
-                ValueSpecified = true
-            });
-            //add action to route
-
-            if (shutter)
-            {
-                ActionDefinition actionDefenition_Shutter = new ActionDefinition();
-                CameraTriggerDefinition triggerDef = new CameraTriggerDefinition
-                {
-                    State = TriggerState.TS_SINGLE_SHOT
-                };
-                actionDefenition_Shutter.CameraTriggerDefinition = triggerDef;
-
-                newSegment.ActionDefinitions.Add(actionDefenition_Shutter);
-            }
-
-            ActionDefinition actionDefenition_Heading = new ActionDefinition();
-            actionDefenition_Heading.HeadingDefinition = new HeadingDefinition
-            {
-                Heading = headingDegree * Math.PI/180, // 90 degrees
-                RelativeToNorth = true
-            };
-            newSegment.ActionDefinitions.Add(actionDefenition_Heading);            
-
-            newSegment.Figure.Points.Add(new FigurePoint()
-            {
-                AglAltitude = alt,
-                AglAltitudeSpecified = true,
-                AltitudeType = AltitudeType.AT_AGL,
-                AltitudeTypeSpecified = true,
-                Latitude = lat * Math.PI / 180, //0.99443566874164979,
-                LatitudeSpecified = true,
-                Longitude = lng * Math.PI / 180, //0.42015588448045021,
-                LongitudeSpecified = true,
-                Order = 0,
-                Wgs84Altitude = 0.0,
-                Wgs84AltitudeSpecified = true
-            });
-
-            route.Segments.Add(newSegment);
-            return (route);
-        }
-
         /// <summary>
         /// Example how to create route on server with route parameters
         /// Minimum parameters is specified
@@ -344,7 +98,7 @@ namespace Services.SdkServices
         /// <param name="vehicleProfile">Profile for route</param>
         /// <param name="name">Route name</param>
         /// <returns></returns>
-        public Route CreateNewRoute(Mission mission, VehicleProfile vehicleProfile, String name = "MavicTestRoute")
+        public Route CreateNewRoute(Mission mission, VehicleProfile vehicleProfile, String name = "TestRoute")
         {
 
             var routeName = string.Format("{0} {1}", name, DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToShortTimeString());
@@ -368,10 +122,10 @@ namespace Services.SdkServices
             route = future.Value.Route;
             route.Mission = mission;
             route.HomeLocationSource = HomeLocationSource.HLS_FIRST_WAYPOINT;
-            route.TrajectoryType = TrajectoryType.TT_STRAIGHT;
+            route.TrajectoryType = TrajectoryType.TT_STAIR;
             route.AltitudeType = AltitudeType.AT_AGL;
-            route.MaxAltitude = 500.0;
-            route.SafeAltitude = 100.0;
+            route.MaxAltitude = 50.0;
+            route.SafeAltitude = 3.0;
             route.CheckAerodromeNfz = false;
             route.CheckAerodromeNfzSpecified = true;
             route.InitialSpeed = 0.0;
@@ -380,14 +134,14 @@ namespace Services.SdkServices
             route.CheckCustomNfzSpecified = true;
             route.Failsafes.Add(new Failsafe()
             {
-                Action = FailsafeAction.FA_CONTINUE,
+                Action = FailsafeAction.FA_GO_HOME,
                 ActionSpecified = true,
                 Reason = FailsafeReason.FR_RC_LOST,
                 ReasonSpecified = true
             });
             route.Failsafes.Add(new Failsafe()
             {
-                Action = FailsafeAction.FA_GO_HOME,
+                Action = FailsafeAction.FA_LAND,
                 ActionSpecified = true,
                 Reason = FailsafeReason.FR_LOW_BATTERY,
                 ReasonSpecified = true
@@ -401,7 +155,7 @@ namespace Services.SdkServices
             });
             route.Failsafes.Add(new Failsafe()
             {
-                Action = FailsafeAction.FA_CONTINUE,
+                Action = FailsafeAction.FA_GO_HOME,
                 ActionSpecified = true,
                 Reason = FailsafeReason.FR_DATALINK_LOST,
                 ReasonSpecified = true
@@ -439,32 +193,9 @@ namespace Services.SdkServices
             {
                 logger.LogWarningMessage("Could not save route info: " + route.Name);
                 throw new Exception("Could not save route info: " + route.Name);
-            }            
-            return task.Value.Object.Route;
-        }
-
-        /// <summary>
-        /// example for exporting route to xml
-        /// </summary>
-        /// <param name="route"></param>
-        public void ExportRouteToXml(Route route)
-        {
-            ExportRouteToXmlRequest request = new ExportRouteToXmlRequest()
-            {
-                ClientId = _connect.AuthorizeHciResponse.ClientId,
-                Route = route
-            };
-
-            var task = _connect.Executor.Submit<ExportRouteToXmlResponse>(request);
-            task.Wait();
-
-            if (task.Value == null)
-            {
-                throw new Exception("Could not save xml " + route.Id);
             }
-            var xml = task.Value.RouteXml;
-            File.WriteAllBytes("haha.xml", xml);
 
+            return task.Value.Object.Route;
         }
 
         /// <summary>
