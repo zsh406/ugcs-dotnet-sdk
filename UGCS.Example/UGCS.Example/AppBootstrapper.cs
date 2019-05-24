@@ -59,7 +59,8 @@ namespace UGCS.Example
             
                 Kernel = new StandardKernel();
                 Settings.Default.IsValidConfiguration();
-                _tcpClient = new TcpClient(Settings.Default.UgcsUcsAddress, Settings.Default.UCSPort);
+                _tcpClient = new TcpClient();
+                _tcpClient.Connect(Settings.Default.UgcsUcsAddress, Settings.Default.UCSPort);
                 _tcpClient.Session.Disconnected += UCSDisconnect;
                 _messageSender = new MessageSender(_tcpClient.Session);
                 _messageReceiver = new MessageReceiver(_tcpClient.Session);                
@@ -73,8 +74,8 @@ namespace UGCS.Example
 							typeof(ImportRouteRequest),
 							typeof(ExportMissionToXmlRequest),
 							typeof(ImportMissionFromXmlRequest),
-							typeof(ExportTelemetryToXmlRequest),
-							typeof(ImportTelemetryFromXmlRequest)
+							typeof(ExportTelemetryRequest),
+							typeof(ImportTelemetryRequest)
 						};
                 foreach (Type type in transferTypes)
                 {

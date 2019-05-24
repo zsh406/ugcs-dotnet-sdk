@@ -15,11 +15,45 @@ namespace UGCS.Console
 
     class Program
     {
+        private static object getTelemetryValue(Value telemetryValue)
+        {
+            if (telemetryValue == null)
+            {
+                return null;
+            }
+            if (telemetryValue.IntValueSpecified)
+            {
+                return telemetryValue.IntValue;
+            }
+            if (telemetryValue.LongValueSpecified)
+            {
+                return telemetryValue.LongValue;
+            }
+            if (telemetryValue.StringValueSpecified)
+            {
+                return telemetryValue.StringValue;
+            }
+            if (telemetryValue.BoolValueSpecified)
+            {
+                return telemetryValue.BoolValue;
+            }
+            if (telemetryValue.DoubleValueSpecified)
+            {
+                return telemetryValue.DoubleValue;
+            }
+            if (telemetryValue.FloatValueSpecified)
+            {
+                return telemetryValue.FloatValue;
+            }
+            return null;
+        }
+
         static void Main(string[] args)
         {
 
             //Connect
-            TcpClient tcpClient = new TcpClient("localhost", 3334);
+            TcpClient tcpClient = new TcpClient();
+            tcpClient.Connect("localhost", 3334);
             MessageSender messageSender = new MessageSender(tcpClient.Session);
             MessageReceiver messageReceiver = new MessageReceiver(tcpClient.Session);
             MessageExecutor messageExecutor = new MessageExecutor(messageSender, messageReceiver, new InstantTaskScheduler());
@@ -57,6 +91,20 @@ namespace UGCS.Console
             resultLock.Wait();
 
             // Click&Go example
+
+            var sendCommandRequestGuided = new SendCommandRequest
+            {
+                ClientId = clientId,
+                Command = new UGCS.Sdk.Protocol.Encoding.Command
+                {
+                    Code = "guided",
+                    Subsystem = Subsystem.S_FLIGHT_CONTROLLER
+                }
+            };
+            sendCommandRequestGuided.Vehicles.Add(new Vehicle { Id = 2 });
+            var sendCommandResponseGuided = messageExecutor.Submit<SendCommandResponse>(sendCommandRequestGuided);
+            sendCommandResponseGuided.Wait();
+
             var sendCommandRequest = new SendCommandRequest
             {
                 ClientId = clientId,
@@ -95,6 +143,27 @@ namespace UGCS.Console
             var mission = importMissionResponse.Value.Mission;
             System.Console.WriteLine("Demo mission.xml imported to UCS with name '{0}'", mission.Name);
 
+
+            //Get all vehicles
+            GetObjectListRequest getObjectListRequest = new GetObjectListRequest()
+            {
+                ClientId = clientId,
+                ObjectType = "Vehicle",
+                RefreshDependencies = true
+            };
+            getObjectListRequest.RefreshExcludes.Add("PayloadProfile");
+            getObjectListRequest.RefreshExcludes.Add("Route");
+            var task = messageExecutor.Submit<GetObjectListResponse>(getObjectListRequest);
+            task.Wait();
+
+            var list = task.Value;
+            foreach (var v in list.Objects)
+            {
+                System.Console.WriteLine(string.Format("name: {0}; id: {1}; type: {2}",
+                       v.Vehicle.Name, v.Vehicle.Id, v.Vehicle.Type.ToString()));
+            }
+            Vehicle vehicle = task.Value.Objects.FirstOrDefault().Vehicle;
+
             //Get mission from server
             GetObjectRequest getMissionObjectRequest = new GetObjectRequest()
             {
@@ -108,6 +177,39 @@ namespace UGCS.Console
             //missionFromUcs contains retrieved mission
             var missionFromUcs = getMissionObjectResponse.Value.Object.Mission;
             System.Console.WriteLine("mission id '{0}' retrieved from UCS with name '{1}'", mission.Id, missionFromUcs.Name);
+
+            //vehicles in mission
+            System.Console.WriteLine("Vehicles in mission:");
+            foreach (var vehicleMission in missionFromUcs.Vehicles)
+            {
+                System.Console.WriteLine(vehicleMission.Vehicle.Name);
+            }
+            missionFromUcs.Vehicles.Clear();
+
+            //Add vehicle to mission
+            missionFromUcs.Vehicles.Add(
+                  new MissionVehicle
+                  {
+                      Vehicle = vehicle
+                  });
+
+            System.Console.WriteLine("Vehicles in mission after add vehicle:");
+            foreach (var vehicleMission in missionFromUcs.Vehicles)
+            {
+                System.Console.WriteLine(vehicleMission.Vehicle.Name);
+            }
+
+            //save mission
+            CreateOrUpdateObjectRequest createOrUpdateObjectRequestForMission = new CreateOrUpdateObjectRequest()
+            {
+                ClientId = clientId,
+                Object = new DomainObjectWrapper().Put(missionFromUcs, "Mission"),
+                WithComposites = true,
+                ObjectType = "Mission",
+                AcquireLock = false
+            };
+            var updateMissionTask = messageExecutor.Submit<CreateOrUpdateObjectResponse>(createOrUpdateObjectRequestForMission);
+            updateMissionTask.Wait();
 
             //Import route
             var byteArrayRoute = File.ReadAllBytes("Demo route for Copter.xml");
@@ -192,26 +294,6 @@ namespace UGCS.Console
             {
                 System.Console.WriteLine(string.Format("fail to update route '{0}' on UCS", routeFromUcs.Name));
             }
-
-            //Get all vehicles
-            GetObjectListRequest getObjectListRequest = new GetObjectListRequest()
-            {
-                ClientId = clientId,
-                ObjectType = "Vehicle",
-                RefreshDependencies = true
-            };
-            getObjectListRequest.RefreshExcludes.Add("PayloadProfile");
-            getObjectListRequest.RefreshExcludes.Add("Route");
-            var task = messageExecutor.Submit<GetObjectListResponse>(getObjectListRequest);
-            task.Wait();
-
-            var list = task.Value;
-            foreach (var v in list.Objects)
-            {
-                System.Console.WriteLine(string.Format("name: {0}; id: {1}; type: {2}",
-                       v.Vehicle.Name, v.Vehicle.Id, v.Vehicle.Type.ToString()));
-            }
-            Vehicle vehicle = task.Value.Objects.FirstOrDefault().Vehicle;
 
             // Payload control
             SendCommandRequest requestPaload = new SendCommandRequest
@@ -391,9 +473,9 @@ namespace UGCS.Console
             SubscriptionToken stTelemetry = new SubscriptionToken(subscribeEventResponseTelemetry.SubscriptionId, (
                 (notification) =>
                 {
-                    foreach (var t in notification.Event.TelemetryEvent.Telemetry)
+                    foreach (Telemetry t in notification.Event.TelemetryEvent.Telemetry)
                     {
-                        System.Console.WriteLine("Vehicle id: {0} Type: {1} Value {2}", t.Vehicle.Id, t.Type.ToString(), t.Value);
+                        System.Console.WriteLine("Vehicle id: {0} Code: {1} Semantic {2} Subsystem {3} Value {4}", notification.Event.TelemetryEvent.Vehicle.Id, t.TelemetryField.Code, t.TelemetryField.Semantic, t.TelemetryField.Subsystem, getTelemetryValue(t.Value));
                     }
                 }
             ), telemetrySubscriptionWrapper);
