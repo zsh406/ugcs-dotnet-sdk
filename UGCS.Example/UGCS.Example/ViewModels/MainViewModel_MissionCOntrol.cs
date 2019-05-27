@@ -21,6 +21,7 @@ using System.Timers;
 using UGCS.Example.Enums;
 using Services.Commands;
 
+
 namespace UGCS.Example.ViewModels
 {
     public partial class MainViewModel : Caliburn.Micro.PropertyChangedBase
@@ -59,6 +60,8 @@ namespace UGCS.Example.ViewModels
 
         public void CreateRoute()
         {
+                      
+
             if (Mission == null)
             {
                 MessageBox.Show("Mission not created");

@@ -74,8 +74,8 @@ namespace UGCS.Example
 							typeof(ImportRouteRequest),
 							typeof(ExportMissionToXmlRequest),
 							typeof(ImportMissionFromXmlRequest),
-							typeof(ExportTelemetryRequest),
-							typeof(ImportTelemetryRequest)
+							//typeof(ExportTelemetryRequest),
+							//typeof(ImportTelemetryRequest)
 						};
                 foreach (Type type in transferTypes)
                 {
