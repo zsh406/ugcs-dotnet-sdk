@@ -118,7 +118,7 @@ namespace Services.SdkServices
 
             newSegment.Figure.Points.Add(new FigurePoint()
             {
-                AglAltitude = 0,
+                AglAltitude = alt,
                 AglAltitudeSpecified = true,
                 AltitudeType = AltitudeType.AT_AGL,
                 AltitudeTypeSpecified = true,
@@ -134,7 +134,7 @@ namespace Services.SdkServices
         }
 
 
-        public Route AddWaypointWithAlt(Route route, double lat, double lng, double alt, double headingDegree, bool shutter, string speed = "5.0")
+        public Route AddWaypointWithAlt(Route route, double lat, double lng, double alt, double headingDegree, bool shutter, double tiltDegree = 90,  string speed = "5.0")
         {
             TraverseAlgorithm wpAlgorithm = _mappingRequestService.GetAlgoritmByClassName("com.ugcs.ucs.service.routing.impl.WaypointAlgorithm");
 
@@ -171,6 +171,18 @@ namespace Services.SdkServices
                 ValueSpecified = true
             });
             //add action to route
+
+            if (tiltDegree < 90)
+            {
+                ActionDefinition actionDefinition_cameraTilt = new ActionDefinition();
+                actionDefinition_cameraTilt.CameraControlDefinition = new CameraControlDefinition
+                {
+                    Tilt = tiltDegree * Math.PI / 180,
+                    Roll = 0,
+                    Yaw = 0
+                };
+                newSegment.ActionDefinitions.Add(actionDefinition_cameraTilt);
+            }
 
             if (shutter)
             {
@@ -213,6 +225,57 @@ namespace Services.SdkServices
 
         public Route AddWaypointFromTxt(string fileName, Route route)
         {
+            var waypoints = File.ReadAllLines(fileName);
+            int length = waypoints.Length;
+            double heading = 0;
+            double home_lat = 0;
+            double home_lon = 0;
+            double takeoffAltitude = 0;
+            for (int i=0;i<length;i++)
+            {
+                string[] waypointSplit = waypoints[i].Split(',');                
+
+                double lat = Convert.ToDouble(waypointSplit[0]);
+                double lon = Convert.ToDouble(waypointSplit[1]);
+                double alt = Convert.ToDouble(waypointSplit[2]);
+                double pitch = Convert.ToDouble(waypointSplit[4]);
+                double yaw = Convert.ToDouble(waypointSplit[5]);
+
+                if (i==0)
+                {
+                    home_lat = lat;
+                    home_lon = lon;
+                    route.Segments.Add(addTakeoffSegment(lat, lon, alt, yaw));
+                }
+                else
+                {
+                    route = AddWaypointWithAlt(route, lat, lon, alt, yaw, true, pitch);
+                }         
+                //if (i < length - 1)
+                //{
+                //    string[] waypointSplitNext = waypoints[i + 1].Split(',');
+                //    double yawNext = Convert.ToDouble(waypointSplitNext[5]);
+                //    if (i == 0) //first line, take off
+                //    {
+                //        home_lat = lat;
+                //        home_lon = lon;
+                //        route.Segments.Add(addTakeoffSegment(lat, lon, alt, yawNext));
+                //    }
+                //    else
+                //    {
+                //        route = AddWaypointWithAlt(route, lat, lon, alt, yawNext, true, pitch);
+                //    }
+                //} 
+                //else
+                //{
+                //    route = AddWaypointWithAlt(route, lat, lon, alt, yaw, true, pitch);
+                //}
+                
+            }
+            //add return home command
+            route.Segments.Add(addLandingSegment(home_lat, home_lon));
+            route = SaveUpdatedRoute(route);
+
             return route;
         }
 
@@ -252,14 +315,14 @@ namespace Services.SdkServices
                     }
                     else //shutter point
                     {
-                        route = AddWaypointWithAlt(route, lat, lon, alt, heading, true, "9.0");
+                        route = AddWaypointWithAlt(route, lat, lon, alt, heading, true,90, "9.0");
                     }
                 }
             }
             //add return home command
             route.Segments.Add(addLandingSegment(home_lat, home_lon));
             route = SaveUpdatedRoute(route);
-            // ExportRouteToXml(route);
+            //ExportRouteToXml(route);
             return (route);
         }
 
