@@ -87,13 +87,13 @@ namespace UGCS.Example.ViewModels
                 //{
                 //    filename = openFileDialog1.FileName;
                 //}
-                // filename = @"C:\Users\shuhang\Documents\GitHub\UAV_planning_photogrammetry\results\0617-30h-ds2-20m-2-2xob\EO_export.txt";
-                filename = @"D:\Datasets\Hessigheim_Pointcloud\DJI_flight\metashape_path\all_43.kml";
+                filename = @"C:\Users\shuhang\Documents\GitHub\UAV_planning_photogrammetry\results\0701-30h-ds1\EO_export.txt";
+                //filename = @"D:\Datasets\Hessigheim_Pointcloud\DJI_flight\metashape_path\all_43.kml";
 
                 string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filename);
                 Route = _routeService.CreateNewRoute(Mission, ClientVehicle.Vehicle.Profile, fileNameWithoutExtension);
-                // Route = _routeService.AddWaypointFromTxt(filename, Route);
-                Route = _routeService.AddWaypointFromKml(filename, Route);
+                Route = _routeService.AddWaypointFromTxt(filename, Route);
+                //Route = _routeService.AddWaypointFromKml(filename, Route);
 
             }).ContinueWith((result) =>
             {
