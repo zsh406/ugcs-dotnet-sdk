@@ -12,6 +12,10 @@ using System.Threading.Tasks;
 using UGCS.Sdk.Protocol.Encoding;
 using UGCS.Sdk.Protocol;
 using Services.Helpers;
+using SharpKml.Base;
+using SharpKml.Engine;
+using SharpKml.Dom;
+
 
 namespace Services.SdkServices
 {
@@ -172,7 +176,7 @@ namespace Services.SdkServices
             });
             //add action to route
 
-            if (tiltDegree < 90)
+            if (tiltDegree <= 90)
             {
                 ActionDefinition actionDefinition_cameraTilt = new ActionDefinition();
                 actionDefinition_cameraTilt.CameraControlDefinition = new CameraControlDefinition
@@ -221,6 +225,33 @@ namespace Services.SdkServices
 
             route.Segments.Add(newSegment);
             return (route);
+        }
+
+        public Route AddWaypointFromKml(string fileName, Route route)
+        {
+            FileStream stream = File.Open(fileName, FileMode.Open);
+
+            KmlFile file = KmlFile.Load(stream);
+            Kml kml = file.Root as Kml;
+            if (kml != null)
+            {
+                foreach (var placemark in kml.Flatten().OfType<Placemark>())
+                {
+                    Console.WriteLine(placemark.Name);
+                    LookAt vp = (LookAt)placemark.Viewpoint;
+                    double lat = (double)vp.Latitude;
+                    double lon = (double)vp.Longitude;
+                    double alt = (double)vp.Altitude;
+                    double yaw = (double)vp.Heading;
+                    double pitch = 90 - (double)vp.Tilt;
+                    if (pitch > 90) pitch = 90;
+
+                    route = AddWaypointWithAlt(route, lat, lon, alt, yaw, true, pitch);
+                }
+            }
+            route = SaveUpdatedRoute(route);
+            stream.Close();
+            return route;
         }
 
         public Route AddWaypointFromTxt(string fileName, Route route)
