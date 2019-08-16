@@ -87,7 +87,7 @@ namespace UGCS.Example.ViewModels
                 //{
                 //    filename = openFileDialog1.FileName;
                 //}
-                filename = @"C:\Users\shuhang\Documents\GitHub\UAV_planning_photogrammetry\results\0701-30h-ds1\EO_export.txt";
+                filename = @"C:\Users\shuhang\Documents\GitHub\UAV_planning_photogrammetry\results\0815-ds2-2-init5\EO_export.txt";
                 //filename = @"D:\Datasets\Hessigheim_Pointcloud\DJI_flight\metashape_path\all_43.kml";
 
                 string fileNameWithoutExtension = System.IO.Path.GetFileNameWithoutExtension(filename);
